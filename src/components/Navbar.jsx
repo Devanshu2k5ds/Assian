@@ -46,11 +46,21 @@ export default function Navbar() {
             Book Showroom Visit
           </button>
           <button
-            className="px-4 py-2 text-sm rounded-sm border"
-            style={{ fontFamily: fontSans, borderColor: colors.text, color: colors.text }}
-          >
-            WhatsApp
-          </button>
+  className="px-4 py-2 text-sm rounded-sm border"
+  style={{ fontFamily: fontSans, borderColor: colors.text, color: colors.text }}
+  onClick={() => {
+    const phoneNumber = "919056174744"; // Country code + number (no +, spaces, or dashes)
+    const defaultMessage = encodeURIComponent("Hello! I would like to get in touch.");
+    
+    window.open(
+      `https://wa.me/${phoneNumber}?text=${defaultMessage}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }}
+>
+  WhatsApp
+</button>
         </div>
 
         <button className="md:hidden" onClick={() => setOpen(!open)} aria-label="Toggle menu">
