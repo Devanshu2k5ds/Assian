@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { ArrowLeftIcon, CubeTransparentIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { colors, fontSerif, fontSans } from "../lib/theme";
@@ -10,8 +10,22 @@ import collections from "../data/collections";
 // back to the multiplier model-viewer's `scale` attribute expects.
 const pctToMultiplier = (pct) => (pct / 100).toFixed(2);
 
-function DimensionSlider({ label, pct, onChange, baseCm }) {
-  const currentCm = Math.round(baseCm * (pct / 100));
+// Formats a cm value in either "cm" or "ft/in" (e.g. 6'11") depending on
+// the unit the user has selected.
+function formatLength(cm, unit) {
+  if (unit === "cm") return `${Math.round(cm)} cm`;
+  const totalInches = cm / 2.54;
+  let feet = Math.floor(totalInches / 12);
+  let inches = Math.round(totalInches % 12);
+  if (inches === 12) {
+    feet += 1;
+    inches = 0;
+  }
+  return `${feet}' ${inches}"`;
+}
+
+function DimensionSlider({ label, pct, onChange, baseCm, unit }) {
+  const currentCm = baseCm * (pct / 100);
   return (
     <div>
       <div className="flex items-baseline justify-between mb-1.5">
@@ -19,7 +33,7 @@ function DimensionSlider({ label, pct, onChange, baseCm }) {
           {label}
         </label>
         <span className="text-sm" style={{ fontFamily: fontSans, color: colors.textMuted }}>
-          {currentCm} cm
+          {formatLength(currentCm, unit)}
         </span>
       </div>
       <input
@@ -36,14 +50,58 @@ function DimensionSlider({ label, pct, onChange, baseCm }) {
   );
 }
 
+function UnitToggle({ unit, setUnit }) {
+  const options = [
+    { id: "cm", label: "cm" },
+    { id: "ft", label: "ft / in" },
+  ];
+  return (
+    <div className="inline-flex text-xs" style={{ border: `1px solid ${colors.hairline}` }}>
+      {options.map((opt) => (
+        <button
+          key={opt.id}
+          onClick={() => setUnit(opt.id)}
+          className="px-3 py-1.5"
+          style={{
+            fontFamily: fontSans,
+            backgroundColor: unit === opt.id ? colors.espresso : "transparent",
+            color: unit === opt.id ? "#fff" : colors.textMuted,
+          }}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function ProductPage() {
   const { slug, productSlug } = useParams();
   const collection = collections[slug];
   const product = collection?.products.find((p) => p.slug === productSlug);
 
+  const viewerRef = useRef(null);
+
   // Width/height/length as a percent of the product's real-world size.
-  // 100 = actual size. Hooks must run before any early return below.
+  // 100 = actual size.
   const [size, setSize] = useState({ width: 100, height: 100, depth: 100 });
+  const [unit, setUnit] = useState("cm");
+
+  // Only true once the user has actually entered AR (tapped the button and
+  // a session started) — the resize panel stays hidden until then.
+  const [arActive, setArActive] = useState(false);
+
+  // Hooks must run before any early return below.
+  useEffect(() => {
+    const node = viewerRef.current;
+    if (!node) return;
+    const handleArStatus = (event) => {
+      const status = event.detail?.status;
+      setArActive(status === "session-started" || status === "object-placed");
+    };
+    node.addEventListener("ar-status", handleArStatus);
+    return () => node.removeEventListener("ar-status", handleArStatus);
+  }, [product]);
 
   if (!collection) return <Navigate to="/" replace />;
   if (!product) return <Navigate to={`/collections/${slug}`} replace />;
@@ -68,6 +126,7 @@ export default function ProductPage() {
           {/* --- 3D / AR viewer --------------------------------------- */}
           <div>
             <model-viewer
+              ref={viewerRef}
               src={product.model}
               ios-src={product.iosModel}
               alt={`3D model of ${product.name}`}
@@ -96,54 +155,66 @@ export default function ProductPage() {
             </model-viewer>
             <p className="text-xs mt-3" style={{ fontFamily: fontSans, color: colors.textMuted }}>
               Drag to rotate. Tap "View in your space" on a supported phone to place this
-              piece in your room using AR — it keeps whatever size you set below.
+              piece in your room using AR.
             </p>
 
-            {/* --- Resize sliders ------------------------------------- */}
-            <div className="mt-6 p-5" style={{ backgroundColor: "#fff", border: `1px solid ${colors.hairline}` }}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm" style={{ fontFamily: fontSerif, color: colors.text, fontWeight: 600 }}>
-                  Adjust size
-                </h3>
-                {!isDefaultSize && (
-                  <button
-                    onClick={resetSize}
-                    className="inline-flex items-center gap-1 text-xs hover:opacity-70"
-                    style={{ fontFamily: fontSans, color: colors.brownDeep }}
-                  >
-                    <ArrowPathIcon className="h-3.5 w-3.5" />
-                    Reset to actual size
-                  </button>
-                )}
-              </div>
+            {/* --- Resize sliders — only shown once AR is active -------- */}
+            {arActive ? (
+              <div className="mt-6 p-5" style={{ backgroundColor: "#fff", border: `1px solid ${colors.hairline}` }}>
+                <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                  <h3 className="text-sm" style={{ fontFamily: fontSerif, color: colors.text, fontWeight: 600 }}>
+                    Adjust size
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    {!isDefaultSize && (
+                      <button
+                        onClick={resetSize}
+                        className="inline-flex items-center gap-1 text-xs hover:opacity-70"
+                        style={{ fontFamily: fontSans, color: colors.brownDeep }}
+                      >
+                        <ArrowPathIcon className="h-3.5 w-3.5" />
+                        Reset
+                      </button>
+                    )}
+                    <UnitToggle unit={unit} setUnit={setUnit} />
+                  </div>
+                </div>
 
-              <div className="flex flex-col gap-4">
-                <DimensionSlider
-                  label="Width"
-                  pct={size.width}
-                  baseCm={product.dimensions.width}
-                  onChange={(width) => setSize((s) => ({ ...s, width }))}
-                />
-                <DimensionSlider
-                  label="Height"
-                  pct={size.height}
-                  baseCm={product.dimensions.height}
-                  onChange={(height) => setSize((s) => ({ ...s, height }))}
-                />
-                <DimensionSlider
-                  label="Length"
-                  pct={size.depth}
-                  baseCm={product.dimensions.depth}
-                  onChange={(depth) => setSize((s) => ({ ...s, depth }))}
-                />
-              </div>
+                <div className="flex flex-col gap-4">
+                  <DimensionSlider
+                    label="Width"
+                    pct={size.width}
+                    baseCm={product.dimensions.width}
+                    unit={unit}
+                    onChange={(width) => setSize((s) => ({ ...s, width }))}
+                  />
+                  <DimensionSlider
+                    label="Height"
+                    pct={size.height}
+                    baseCm={product.dimensions.height}
+                    unit={unit}
+                    onChange={(height) => setSize((s) => ({ ...s, height }))}
+                  />
+                  <DimensionSlider
+                    label="Length"
+                    pct={size.depth}
+                    baseCm={product.dimensions.depth}
+                    unit={unit}
+                    onChange={(depth) => setSize((s) => ({ ...s, depth }))}
+                  />
+                </div>
 
-              <p className="text-xs mt-4 leading-relaxed" style={{ fontFamily: fontSans, color: colors.textMuted }}>
-                Actual size: {product.dimensions.width} × {product.dimensions.height} ×{" "}
-                {product.dimensions.depth} cm (W × H × L). Dragging a slider scales that axis
-                independently, both here and in AR.
+                <p className="text-xs mt-4 leading-relaxed" style={{ fontFamily: fontSans, color: colors.textMuted }}>
+                  Actual size: {formatLength(product.dimensions.width, unit)} ×{" "}
+                  {formatLength(product.dimensions.height, unit)} × {formatLength(product.dimensions.depth, unit)}{" "}
+                  (W × H × L).
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs mt-4 italic" style={{ fontFamily: fontSans, color: colors.textMuted }}>
+                Size adjustment appears here once you're viewing this piece in AR.
               </p>
-            </div>
+            )}
           </div>
 
           {/* --- Product details ---------------------------------------- */}
