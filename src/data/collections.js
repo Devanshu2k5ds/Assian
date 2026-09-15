@@ -4,13 +4,17 @@
 //
 // Each product now also has:
 //   - slug: URL segment for /collections/:slug/:productSlug
-//   - model: a .glb file for AR on Android (WebXR / Scene Viewer) and desktop
-//   - iosModel: a .usdz file for AR Quick Look on iPhone/iPad (Safari only)
+//   - model / iosModel: AR model files (see PLACEHOLDER note below)
+//   - dimensions: { width, height, depth } in cm — the piece's REAL-WORLD
+//     size at 100% scale. ProductPage.jsx uses this as the baseline the
+//     width/height/length sliders scale up or down from, and to show the
+//     user an actual cm figure instead of a meaningless percentage.
 //
 // PLACEHOLDER MODELS: every product below points at the same public sample
 // model (Google's Astronaut) just so the AR flow works end-to-end. Swap
 // `model` and `iosModel` for your own product's .glb/.usdz once you have
-// real 3D scans or renders — see the note in ProductPage.jsx.
+// real 3D scans or renders — see the note in ProductPage.jsx. Dimensions
+// are realistic placeholders too — replace with your actual product specs.
 const PLACEHOLDER_MODEL = "https://modelviewer.dev/shared-assets/models/Astronaut.glb";
 const PLACEHOLDER_IOS_MODEL = "https://modelviewer.dev/shared-assets/models/Astronaut.usdz";
 
@@ -31,6 +35,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 220, height: 85, depth: 95 },
       },
       {
         slug: "alder-armchair",
@@ -40,6 +45,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1567016432779-094069958ea5?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 75, height: 80, depth: 78 },
       },
       {
         slug: "wren-corner-sofa",
@@ -49,6 +55,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 260, height: 85, depth: 160 },
       },
       {
         slug: "hazel-lounge-chair",
@@ -58,6 +65,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1550254478-ead40cc54513?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 70, height: 75, depth: 80 },
       },
     ],
   },
@@ -78,6 +86,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 160, height: 110, depth: 210 },
       },
       {
         slug: "siena-platform-bed",
@@ -87,6 +96,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 150, height: 90, depth: 205 },
       },
       {
         slug: "elm-canopy-bed",
@@ -96,6 +106,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 180, height: 200, depth: 215 },
       },
       {
         slug: "verona-tufted-bed",
@@ -105,6 +116,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 160, height: 115, depth: 210 },
       },
       {
         slug: "nocturne-panel-bed",
@@ -114,6 +126,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1616627561950-9f746e330187?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 160, height: 100, depth: 208 },
       },
     ],
   },
@@ -134,6 +147,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1617806118233-18e1de247200?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 160, height: 75, depth: 90 },
       },
       {
         slug: "faro-round-table",
@@ -143,6 +157,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1449247709967-d4461a6a6103?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 120, height: 75, depth: 120 },
       },
       {
         slug: "linden-live-edge-table",
@@ -152,6 +167,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1615873968403-89e068629265?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 200, height: 76, depth: 100 },
       },
     ],
   },
@@ -172,6 +188,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1556909212-d5b604d0c90d?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 300, height: 85, depth: 60 },
       },
       {
         slug: "parallel-line-kitchen",
@@ -181,6 +198,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 280, height: 85, depth: 60 },
       },
       {
         slug: "island-concept-kitchen",
@@ -190,6 +208,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 350, height: 90, depth: 120 },
       },
     ],
   },
@@ -210,6 +229,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 240, height: 240, depth: 60 },
       },
       {
         slug: "walk-in-wardrobe-system",
@@ -219,6 +239,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1626178793926-22b28830aa30?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 300, height: 240, depth: 400 },
       },
       {
         slug: "hinged-door-wardrobe",
@@ -228,6 +249,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1595515106969-1ce29566ff1c?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 200, height: 220, depth: 60 },
       },
     ],
   },
@@ -248,6 +270,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1616627561950-9f746e330187?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 140, height: 240, depth: 2 },
       },
       {
         slug: "oak-accent-table",
@@ -257,6 +280,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 45, height: 50, depth: 45 },
       },
       {
         slug: "blackout-drape-set",
@@ -266,6 +290,7 @@ const collections = {
         img: "https://images.unsplash.com/photo-1600210492493-0946911123ea?q=80&w=800&auto=format&fit=crop",
         model: PLACEHOLDER_MODEL,
         iosModel: PLACEHOLDER_IOS_MODEL,
+        dimensions: { width: 150, height: 260, depth: 3 },
       },
     ],
   },
