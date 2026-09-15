@@ -1,6 +1,19 @@
 // One entry per homepage category tile. `slug` is the URL segment used
 // in /collections/:slug and must match the `slug` set on each tile in
 // src/pages/Home.jsx.
+//
+// Each product now also has:
+//   - slug: URL segment for /collections/:slug/:productSlug
+//   - model: a .glb file for AR on Android (WebXR / Scene Viewer) and desktop
+//   - iosModel: a .usdz file for AR Quick Look on iPhone/iPad (Safari only)
+//
+// PLACEHOLDER MODELS: every product below points at the same public sample
+// model (Google's Astronaut) just so the AR flow works end-to-end. Swap
+// `model` and `iosModel` for your own product's .glb/.usdz once you have
+// real 3D scans or renders — see the note in ProductPage.jsx.
+const PLACEHOLDER_MODEL = "https://modelviewer.dev/shared-assets/models/Astronaut.glb";
+const PLACEHOLDER_IOS_MODEL = "https://modelviewer.dev/shared-assets/models/Astronaut.usdz";
+
 const collections = {
   "sofas-armchairs": {
     slug: "sofas-armchairs",
@@ -11,28 +24,40 @@ const collections = {
       "Explore our considered sofa and armchair designs, crafted for lasting comfort and tailored to your living room.",
     products: [
       {
+        slug: "marlowe-sofa",
         name: "Marlowe Sofa",
         description: "A deep-seated three-seater in brushed linen, built for unhurried afternoons.",
         price: "From ₹1,58,000",
         img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "alder-armchair",
         name: "Alder Armchair",
         description: "A compact accent chair with a solid oak frame and a softly rolled arm.",
         price: "From ₹64,000",
         img: "https://images.unsplash.com/photo-1567016432779-094069958ea5?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "wren-corner-sofa",
         name: "Wren Corner Sofa",
         description: "A modular corner piece that adapts to your room, upholstered in boucle.",
         price: "From ₹2,10,000",
         img: "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "hazel-lounge-chair",
         name: "Hazel Lounge Chair",
         description: "A low, sculptural chair with a tapered oak base and generous cushioning.",
         price: "From ₹72,000",
         img: "https://images.unsplash.com/photo-1550254478-ead40cc54513?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
     ],
   },
@@ -46,34 +71,49 @@ const collections = {
       "Explore our considered bed designs, crafted for lasting comfort and tailored to your bedroom.",
     products: [
       {
+        slug: "aurora-upholstered-bed",
         name: "Aurora Upholstered Bed",
         description: "Softly rounded upholstery and a generous padded headboard for unhurried evenings.",
         price: "From ₹1,28,000",
         img: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "siena-platform-bed",
         name: "Siena Platform Bed",
         description: "A low, architectural oak profile with a tailored upholstered surround.",
         price: "From ₹1,46,000",
         img: "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "elm-canopy-bed",
         name: "Elm Canopy Bed",
         description: "Quiet oak framing meets linen textures in a made-to-measure statement piece.",
         price: "From ₹1,82,000",
         img: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "verona-tufted-bed",
         name: "Verona Tufted Bed",
         description: "Deep, tailored comfort with a softly structured silhouette and refined piping.",
         price: "From ₹1,64,000",
         img: "https://images.unsplash.com/photo-1595526114035-0d45ed16cfbf?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "nocturne-panel-bed",
         name: "Nocturne Panel Bed",
         description: "A crisp, contemporary profile with dark oak details and a tailored headboard.",
         price: "From ₹1,72,000",
         img: "https://images.unsplash.com/photo-1616627561950-9f746e330187?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
     ],
   },
@@ -87,22 +127,31 @@ const collections = {
       "Explore our considered dining table designs, crafted for gathering and tailored to your space.",
     products: [
       {
+        slug: "birch-extending-table",
         name: "Birch Extending Table",
         description: "A solid birch top with a hidden leaf, built to grow with your table.",
         price: "From ₹98,000",
         img: "https://images.unsplash.com/photo-1617806118233-18e1de247200?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "faro-round-table",
         name: "Faro Round Table",
         description: "A pedestal-base round table in walnut, sized for everyday and gathering alike.",
         price: "From ₹86,000",
         img: "https://images.unsplash.com/photo-1449247709967-d4461a6a6103?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "linden-live-edge-table",
         name: "Linden Live-Edge Table",
         description: "A single live-edge slab, finished to let the natural grain lead.",
         price: "From ₹1,32,000",
         img: "https://images.unsplash.com/photo-1615873968403-89e068629265?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
     ],
   },
@@ -116,22 +165,31 @@ const collections = {
       "Explore our modular kitchen layouts, planned in 3D and tailored to your walkway and storage needs.",
     products: [
       {
+        slug: "oakridge-l-shape-kitchen",
         name: "Oakridge L-Shape Kitchen",
         description: "An L-shaped layout with soft-close oak cabinetry and an integrated breakfast counter.",
         price: "From ₹4,20,000",
         img: "https://images.unsplash.com/photo-1556909212-d5b604d0c90d?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "parallel-line-kitchen",
         name: "Parallel Line Kitchen",
         description: "A galley-style parallel kitchen designed for tight walkways without losing storage.",
         price: "From ₹3,60,000",
         img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "island-concept-kitchen",
         name: "Island Concept Kitchen",
         description: "An open island layout built for kitchens that double as the gathering room.",
         price: "From ₹5,80,000",
         img: "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
     ],
   },
@@ -145,22 +203,31 @@ const collections = {
       "Explore our made-to-measure wardrobe systems, planned in 3D and tailored to your room and wardrobe.",
     products: [
       {
+        slug: "sliding-panel-wardrobe",
         name: "Sliding Panel Wardrobe",
         description: "Floor-to-ceiling sliding shutters in oak veneer, fitted to your exact wall.",
         price: "From ₹2,40,000",
         img: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "walk-in-wardrobe-system",
         name: "Walk-In Wardrobe System",
         description: "A fully planned walk-in layout with open shelving and soft-close drawers.",
         price: "From ₹3,80,000",
         img: "https://images.unsplash.com/photo-1626178793926-22b28830aa30?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "hinged-door-wardrobe",
         name: "Hinged Door Wardrobe",
         description: "A classic hinged-door wardrobe with an internal layout planned around your wardrobe.",
         price: "From ₹2,10,000",
         img: "https://images.unsplash.com/photo-1595515106969-1ce29566ff1c?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
     ],
   },
@@ -174,22 +241,31 @@ const collections = {
       "Explore our curtains and accent tables, the considered last layer for a room that's otherwise done.",
     products: [
       {
+        slug: "linen-sheer-curtains",
         name: "Linen Sheer Curtains",
         description: "Lightly textured linen sheers that soften daylight without losing it.",
         price: "From ₹8,500",
         img: "https://images.unsplash.com/photo-1616627561950-9f746e330187?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "oak-accent-table",
         name: "Oak Accent Table",
         description: "A small side table in solid oak, sized for a lamp, a book, and not much else.",
         price: "From ₹18,000",
         img: "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
       {
+        slug: "blackout-drape-set",
         name: "Blackout Drape Set",
         description: "A tailored blackout drape in heavyweight cotton, lined for total dark.",
         price: "From ₹12,500",
         img: "https://images.unsplash.com/photo-1600210492493-0946911123ea?q=80&w=800&auto=format&fit=crop",
+        model: PLACEHOLDER_MODEL,
+        iosModel: PLACEHOLDER_IOS_MODEL,
       },
     ],
   },

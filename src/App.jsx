@@ -5,6 +5,7 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
 import CollectionPage from "./pages/CollectionPage";
+import ProductPage from "./pages/ProductPage";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/collections/:slug" element={<CollectionPage />} />
+        <Route path="/collections/:slug/:productSlug" element={<ProductPage />} />
       </Routes>
 
       <Footer />

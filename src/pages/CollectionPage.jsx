@@ -40,9 +40,13 @@ export default function CollectionPage() {
 
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 mb-16">
           {collection.products.map((product) => (
-            <div key={product.name}>
+            <Link key={product.slug} to={`/collections/${slug}/${product.slug}`} className="block group">
               <div className="h-56 overflow-hidden mb-4">
-                <img src={product.img} alt={product.name} className="w-full h-full object-cover" />
+                <img
+                  src={product.img}
+                  alt={product.name}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
               </div>
               <h3 className="text-base mb-1.5" style={{ fontFamily: fontSerif, color: colors.text, fontWeight: 600 }}>
                 {product.name}
@@ -53,7 +57,7 @@ export default function CollectionPage() {
               <p className="text-sm" style={{ fontFamily: fontSans, color: colors.text, fontWeight: 600 }}>
                 {product.price}
               </p>
-            </div>
+            </Link>
           ))}
         </div>
 
