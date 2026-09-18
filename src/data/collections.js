@@ -15,7 +15,7 @@
 // `model` and `iosModel` for your own product's .glb/.usdz once you have
 // real 3D scans or renders — see the note in ProductPage.jsx. Dimensions
 // are realistic placeholders too — replace with your actual product specs.
-const PLACEHOLDER_MODEL = "https://modelviewer.dev/shared-assets/models/Astronaut.glb";
+const PLACEHOLDER_MODEL = "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/GlamVelvetSofa/glTF-Binary/GlamVelvetSofa.glb";
 const PLACEHOLDER_IOS_MODEL = "https://modelviewer.dev/shared-assets/models/Astronaut.usdz";
 
 const collections = {
