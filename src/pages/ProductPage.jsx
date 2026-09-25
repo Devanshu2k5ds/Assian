@@ -21,6 +21,7 @@ import {
 import { colors, fontSerif, fontSans } from "../lib/theme";
 import Eyebrow from "../components/Eyebrow";
 import collections from "../data/collections";
+import { runRecolorChain } from "../components/ARChatbot";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,7 +67,7 @@ function rgb255ToHex(r, g, b) {
   return `#${[r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("")}`;
 }
 
-function hexToHsl(hex) {
+function hexToHsl(hex) { 
   let r = parseInt(hex.slice(1,3),16)/255, g = parseInt(hex.slice(3,5),16)/255, b = parseInt(hex.slice(5,7),16)/255;
   const max = Math.max(r,g,b), min = Math.min(r,g,b);
   let h, s, l = (max+min)/2;
@@ -337,8 +338,58 @@ function SizeTab({ size, setSize, unit, setUnit, product }) {
   );
 }
 
+// ─── Generate block (shared by ColorTab + ARColorRow) ─────────────────────────
+// One implementation so the "Generate" button behaves and reads the same
+// whether you're on the page panel or the AR overlay.
+function GenerateBlock({ dark, generating, status, error, disabled, onGenerate, hasGenerated, onResetGenerated }) {
+  const mutedColor = dark ? "rgba(255,255,255,0.55)" : colors.textMuted;
+  const errorColor = dark ? "#ffb4a8" : "#b3261e";
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${dark ? "rgba(255,255,255,0.15)" : colors.hairline}` }}>
+      <button
+        type="button"
+        onClick={onGenerate}
+        disabled={disabled || generating}
+        style={{
+          width: "100%", padding: "10px 14px", fontSize: 13, fontFamily: fontSans,
+          background: colors.espresso, color: "#fff", border: "none", borderRadius: 6,
+          cursor: (disabled || generating) ? "not-allowed" : "pointer",
+          opacity: (disabled || generating) ? 0.55 : 1,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}
+      >
+        {generating ? (status || "Generating…") : "Generate"}
+      </button>
+      {!disabled && !generating && (
+        <p style={{ fontFamily: fontSans, fontSize: 11, color: mutedColor, marginTop: 6, marginBottom: 0 }}>
+          Sends this color to our AI pipeline to render and re-model the piece — takes a minute or two.
+        </p>
+      )}
+      {disabled && !generating && (
+        <p style={{ fontFamily: fontSans, fontSize: 11, color: mutedColor, marginTop: 6, marginBottom: 0 }}>
+          Pick a color above first.
+        </p>
+      )}
+      {error && (
+        <p style={{ fontFamily: fontSans, fontSize: 11, color: errorColor, marginTop: 6, marginBottom: 0 }}>
+          {error}
+        </p>
+      )}
+      {hasGenerated && !generating && (
+        <button
+          type="button"
+          onClick={onResetGenerated}
+          style={{ fontFamily: fontSans, fontSize: 11, color: dark ? "rgba(255,255,255,0.8)" : colors.brownDeep, background: "none", border: "none", cursor: "pointer", marginTop: 6, padding: 0, textDecoration: "underline" }}
+        >
+          Back to original photo model
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Color tab (page) ─────────────────────────────────────────────────────────
-function ColorTab({ color, setColor }) {
+function ColorTab({ color, setColor, generating, generateStatus, generateError, onGenerate, hasGenerated, onResetGenerated }) {
   const defaultHex = "#b58a5a";
   const [hex, setHex] = useState(color || defaultHex);
   const [rgbInput, setRgbInput] = useState({r:"",g:"",b:""});
@@ -409,6 +460,16 @@ function ColorTab({ color, setColor }) {
             style={{backgroundColor:p.hex}} onClick={()=>apply(p.hex)} aria-label={p.name}/>
         ))}
       </div>
+
+      <GenerateBlock
+        generating={generating}
+        status={generateStatus}
+        error={generateError}
+        disabled={!color}
+        onGenerate={onGenerate}
+        hasGenerated={hasGenerated}
+        onResetGenerated={onResetGenerated}
+      />
     </div>
   );
 }
@@ -428,7 +489,7 @@ function ARSizeRow({ label, pct, baseCm, unit, onChange }) {
   );
 }
 
-function ARColorRow({ color, setColor }) {
+function ARColorRow({ color, setColor, generating, generateStatus, generateError, onGenerate, hasGenerated, onResetGenerated }) {
   const [hex, setHex] = useState(color || "#b58a5a");
   const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
   const apply = (h) => { setHex(h); setColor(h); };
@@ -453,12 +514,23 @@ function ARColorRow({ color, setColor }) {
             style={{backgroundColor:p.hex,width:22,height:22}} onClick={()=>apply(p.hex)}/>
         ))}
       </div>
+
+      <GenerateBlock
+        dark
+        generating={generating}
+        status={generateStatus}
+        error={generateError}
+        disabled={!color}
+        onGenerate={onGenerate}
+        hasGenerated={hasGenerated}
+        onResetGenerated={onResetGenerated}
+      />
     </div>
   );
 }
 
 // Full AR overlay panel (inside model-viewer DOM overlay)
-function ARPanel({ size, setSize, unit, setUnit, color, setColor, product }) {
+function ARPanel({ size, setSize, unit, setUnit, color, setColor, product, generating, generateStatus, generateError, onGenerate, hasGenerated, onResetGenerated }) {
   const [activeTab, setActiveTab] = useState("size");
   const [visible, setVisible] = useState(true);
   return (
@@ -490,7 +562,11 @@ function ARPanel({ size, setSize, unit, setUnit, color, setColor, product }) {
               <ARSizeRow label="Length" pct={size.depth}  baseCm={product.dimensions.depth}  unit={unit} onChange={d=>setSize(s=>({...s,depth:d}))}/>
             </>
           ) : (
-            <ARColorRow color={color} setColor={setColor}/>
+            <ARColorRow
+              color={color} setColor={setColor}
+              generating={generating} generateStatus={generateStatus} generateError={generateError}
+              onGenerate={onGenerate} hasGenerated={hasGenerated} onResetGenerated={onResetGenerated}
+            />
           )}
         </div>
       )}
@@ -499,20 +575,28 @@ function ARPanel({ size, setSize, unit, setUnit, color, setColor, product }) {
 }
 
 // ─── Page panel (always-visible before AR) ───────────────────────────────────
-function PagePanel({ size, setSize, unit, setUnit, color, setColor, product }) {
+function PagePanel({ size, setSize, unit, setUnit, color, setColor, product, generating, generateStatus, generateError, onGenerate, hasGenerated, onResetGenerated }) {
   const [activeTab, setActiveTab] = useState("size");
   const [open, setOpen] = useState(true);
   return (
     <div className="page-panel">
-      <div className="page-panel-header" onClick={()=>setOpen(o=>!o)}>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+      <div className="page-panel-header" style={{cursor:"default"}}>
+        {/* Tab switcher — stop propagation so it never accidentally
+            triggers the collapse button's area */}
+        <div style={{display:"flex",gap:10,alignItems:"center"}} onClick={e=>e.stopPropagation()}>
           <Seg
             options={[{id:"size",label:"Size"},{id:"color",label:"Color"}]}
             value={activeTab}
             onChange={setActiveTab}
           />
         </div>
-        <button style={{background:"none",border:"none",cursor:"pointer",color:colors.textMuted,display:"flex"}} aria-label={open?"Collapse":"Expand"}>
+        {/* Collapse toggle is its own button, separate from the tab row */}
+        <button
+          type="button"
+          onClick={e=>{e.stopPropagation();setOpen(o=>!o);}}
+          style={{background:"none",border:"none",cursor:"pointer",color:colors.textMuted,display:"flex",padding:4}}
+          aria-label={open?"Collapse":"Expand"}
+        >
           {open ? <ChevronUpIcon style={{width:18,height:18}}/> : <ChevronDownIcon style={{width:18,height:18}}/>}
         </button>
       </div>
@@ -520,7 +604,11 @@ function PagePanel({ size, setSize, unit, setUnit, color, setColor, product }) {
         <div className="page-panel-body">
           {activeTab==="size"
             ? <SizeTab size={size} setSize={setSize} unit={unit} setUnit={setUnit} product={product}/>
-            : <ColorTab color={color} setColor={setColor}/>}
+            : <ColorTab
+                color={color} setColor={setColor}
+                generating={generating} generateStatus={generateStatus} generateError={generateError}
+                onGenerate={onGenerate} hasGenerated={hasGenerated} onResetGenerated={onResetGenerated}
+              />}
         </div>
       )}
     </div>
@@ -535,13 +623,28 @@ export default function ProductPage() {
 
   const viewerRef = useRef(null);
   const origFactors = useRef([]);
+  const origSheenFactors = useRef([]);
 
   const [size, setSize] = useState({ width:100, height:100, depth:100 });
   const [unit, setUnit] = useState("cm");
   const [color, setColor] = useState(null);
   const [modelLoaded, setModelLoaded] = useState(false);
   const [arActive, setArActive] = useState(false);
+  const [generatedModelUrl, setGeneratedModelUrl] = useState(null);
+  const [generating, setGenerating] = useState(false);
+  const [generateStatus, setGenerateStatus] = useState("");
+  const [generateError, setGenerateError] = useState("");
   const onIOS = isIOS();
+
+  // Reset load state whenever the product changes (e.g. navigating between
+  // product pages) so the color effect re-fires for the new model's materials.
+  useEffect(() => {
+    setModelLoaded(false);
+    origFactors.current = [];
+    origSheenFactors.current = [];
+    setGeneratedModelUrl(null);
+    setGenerateError("");
+  }, [product?.slug]);
 
   // Listen for AR status + model load
   useEffect(() => {
@@ -551,27 +654,78 @@ export default function ProductPage() {
       const s = e.detail?.status;
       setArActive(s === "session-started" || s === "object-placed");
     };
-    const onLoad = () => {
+    const captureFactors = async () => {
       const mats = node.model?.materials || [];
-      origFactors.current = mats.map(m => [...m.pbrMetallicRoughness.baseColorFactor]);
-      setModelLoaded(true);
+      if (mats.length > 0) {
+        // GlamVelvetSofa ships multiple built-in fabric-color variants
+        // (KHR_materials_variants). model-viewer only loads whichever one
+        // is currently active — reading pbrMetallicRoughness/sheen off an
+        // unloaded variant material throws synchronously, so make sure
+        // each material is loaded first.
+        await Promise.all(mats.map(m => m.ensureLoaded?.().catch(() => {})));
+        origFactors.current = mats.map(m => [...m.pbrMetallicRoughness.baseColorFactor]);
+        origSheenFactors.current = mats.map(m => m.sheen ? [...m.sheen.sheenColorFactor] : null);
+        setModelLoaded(true);
+      }
+    };
+    const onLoad = () => captureFactors();
+    const onError = (e) => {
+      console.error("[model-viewer] failed to load src:", node.getAttribute("src"), e);
+      if (generatedModelUrl) {
+        setGenerateError(
+          "The generated model failed to load in the viewer (bad or unreachable URL) — showing the original model instead. Check the console for the exact URL that failed."
+        );
+      }
     };
     node.addEventListener("ar-status", onAr);
     node.addEventListener("load", onLoad);
-    return () => { node.removeEventListener("ar-status", onAr); node.removeEventListener("load", onLoad); };
-  }, [product]);
+    node.addEventListener("error", onError);
+    // If model-viewer already loaded (cached / fast connection) fire immediately
+    if (node.loaded) captureFactors();
+    return () => {
+      node.removeEventListener("ar-status", onAr);
+      node.removeEventListener("load", onLoad);
+      node.removeEventListener("error", onError);
+    };
+  }, [product, generatedModelUrl]);
 
-  // Sync color onto model
+  // Sync color onto model whenever color changes OR whenever the model
+  // finishes loading (covers the case where the user picks a color before
+  // the .glb has fully loaded).
   useEffect(() => {
     const node = viewerRef.current;
     if (!node || !modelLoaded) return;
-    const mats = node.model?.materials || [];
-    if (color) {
-      const rgba = hexToRgb01(color);
-      mats.forEach(m => m.pbrMetallicRoughness.setBaseColorFactor(rgba));
-    } else {
-      mats.forEach((m,i) => { if (origFactors.current[i]) m.pbrMetallicRoughness.setBaseColorFactor(origFactors.current[i]); });
-    }
+    const mats = node.model?.materials;
+    if (!mats || mats.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      await Promise.all(mats.map(m => m.ensureLoaded?.().catch(() => {})));
+      if (cancelled) return;
+      if (color) {
+        const rgba = hexToRgb01(color);
+        const rgb = [rgba[0], rgba[1], rgba[2]];
+        mats.forEach(m => {
+          try { m.pbrMetallicRoughness.setBaseColorFactor(rgba); } catch(_) {}
+          // Fabrics like GlamVelvetSofa use KHR_materials_sheen — that layer
+          // visually dominates velvet-like surfaces, so baseColorFactor alone
+          // barely shows. Tint it too when the material has one.
+          try { m.sheen?.setSheenColorFactor(rgb); } catch(_) {}
+        });
+      } else {
+        // Revert to per-material original
+        mats.forEach((m, i) => {
+          const orig = origFactors.current[i];
+          if (orig) {
+            try { m.pbrMetallicRoughness.setBaseColorFactor(orig); } catch(_) {}
+          }
+          const origSheen = origSheenFactors.current[i];
+          if (origSheen) {
+            try { m.sheen?.setSheenColorFactor(origSheen); } catch(_) {}
+          }
+        });
+      }
+    })();
+    return () => { cancelled = true; };
   }, [color, modelLoaded]);
 
   // Pinch-sync: poll model-viewer's live scale when in AR so the size
@@ -624,8 +778,39 @@ export default function ProductPage() {
   if (!collection) return <Navigate to="/" replace />;
   if (!product) return <Navigate to={`/collections/${slug}`} replace />;
 
+  // Single handler used by every "Generate" button on the page (page panel
+  // Color tab + AR overlay Color tab) — same call, same backend chain.
+  const handleGenerate = async () => {
+    if (!color || generating) return;
+    setGenerating(true);
+    setGenerateError("");
+    setGenerateStatus("Starting…");
+    try {
+      const result = await runRecolorChain(
+        { productName: product.name, imageUrl: product.img, colorHex: color },
+        (status) => setGenerateStatus(status)
+      );
+      setGeneratedModelUrl(result.modelUrl);
+    } catch (e) {
+      setGenerateError(e.message || "Something went wrong generating this color. Please try again.");
+    } finally {
+      setGenerating(false);
+      setGenerateStatus("");
+    }
+  };
+  const handleResetGenerated = () => {
+    setGeneratedModelUrl(null);
+    setGenerateError("");
+  };
+
   const scaleAttr = `${pctToMul(size.width)} ${pctToMul(size.height)} ${pctToMul(size.depth)}`;
-  const panelProps = { size, setSize, unit, setUnit, color, setColor, product };
+  const panelProps = {
+    size, setSize, unit, setUnit, color, setColor, product,
+    generating, generateStatus, generateError,
+    onGenerate: handleGenerate,
+    hasGenerated: !!generatedModelUrl,
+    onResetGenerated: handleResetGenerated,
+  };
 
   return (
     <section style={{ backgroundColor:colors.cream, paddingTop:48, paddingBottom:64 }}>
@@ -643,8 +828,8 @@ export default function ProductPage() {
           <div>
             <model-viewer
               ref={viewerRef}
-              src={product.model}
-              ios-src={product.iosModel}
+              src={generatedModelUrl || product.model}
+              ios-src={generatedModelUrl ? undefined : product.iosModel}
               alt={`3D model of ${product.name}`}
               ar
               ar-modes="webxr scene-viewer quick-look"

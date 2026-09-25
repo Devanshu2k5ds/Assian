@@ -2,22 +2,38 @@
  * ARChatbot.jsx
  *
  * Flow:
- *  1. User drops an image
- *  2. OpenAI gpt-4o classifies intent
+ *  1. User drops an image (or ProductPage.jsx's "Generate" button passes a
+ *     product photo + chosen color)
+ *  2. Your LLM classifies intent / writes the edit instruction
  *      "convert"   → Trellis immediately
  *      "edit"      → Qwen image-edit → Trellis
  *  3. Trellis returns a .glb URL
  *  4. model-viewer renders it with AR button
  *  5. In-AR (Android WebXR): chatbot panel is rendered as a DOM overlay
  *     child of <model-viewer> so it floats over the camera feed.
- *     iOS Quick Look has no overlay API — panel stays on-page below viewer.
- *  6. User can keep chatting to re-edit → Qwen → Trellis → model swaps.
  *
- * ENV vars (add to .env at project root):
- *   VITE_OPENAI_API_KEY      — OpenAI key (gpt-4o for routing + vision)
- *   VITE_QWEN_API_KEY        — Alibaba Cloud Qwen key (image editing)
- *   VITE_TRELLIS_API_KEY     — Microsoft Trellis key (image → 3D)
- *   VITE_TRELLIS_ENDPOINT    — Trellis endpoint URL
+ * The exported functions below (buildEditPrompt, editImageWithQwen,
+ * imageToGlb, runRecolorChain, routeIntent, callOpenAI) are the ONE
+ * implementation of this chain. ProductPage.jsx's Color tab "Generate"
+ * button imports runRecolorChain from here — same code path as the
+ * chatbot, so behavior is identical everywhere.
+ *
+ * ENV vars (add to .env at project root — no backend needed):
+ *   VITE_OPENAI_API_KEY   — your LLM (routing, chat, and turning a
+ *                           color into a precise Qwen edit instruction)
+ *   VITE_HF_API_TOKEN     — Hugging Face token (huggingface.co/settings/tokens)
+ *                           used for Qwen Image Edit via Inference Providers
+ *   VITE_QWEN_MODEL_ID    — defaults to Qwen/Qwen-Image-Edit-2511
+ *   VITE_TRELLIS_HF_SPACE — the Gradio Space serving TRELLIS, e.g.
+ *                           "microsoft/TRELLIS.2" (default target for this
+ *                           build — see imageToGlb() for the confirmed
+ *                           start_session → image_to_3d → extract_glb chain)
+ *
+ * NOTE: these keys ship inside the browser bundle since there's no backend
+ * — fine for an internal/low-traffic build, but anyone can read them via
+ * devtools. If that ever becomes a problem, move just the three fetch/
+ * client calls below behind a small server route; nothing else in this
+ * file or in ProductPage.jsx needs to change.
  */
 
 import React, {
@@ -29,121 +45,18 @@ import {
   ArrowPathIcon
 } from "@heroicons/react/24/outline";
 import { colors, fontSans, fontSerif } from "../lib/theme";
+import { InferenceClient } from "@huggingface/inference";
+import { Client as GradioClient } from "@gradio/client";
 
 // ─── Env ──────────────────────────────────────────────────────────────────────
-const OPENAI_KEY  = import.meta.env.VITE_OPENAI_API_KEY  || "";
-const QWEN_KEY    = import.meta.env.VITE_QWEN_API_KEY    || "";
-const TRELLIS_KEY = import.meta.env.VITE_TRELLIS_API_KEY || "";
-const TRELLIS_URL = import.meta.env.VITE_TRELLIS_ENDPOINT|| "https://api.trellisxr.microsoft.com/v1";
+const OPENAI_KEY = import.meta.env.VITE_OPENAI_API_KEY || "";
+const HF_TOKEN = import.meta.env.VITE_HF_API_TOKEN || "";
+const QWEN_MODEL_ID = import.meta.env.VITE_QWEN_MODEL_ID || "Qwen/Qwen-Image-Edit-2511";
+const TRELLIS_SPACE = import.meta.env.VITE_TRELLIS_HF_SPACE || "";
 
-// ─── API helpers ──────────────────────────────────────────────────────────────
-
-/** OpenAI gpt-4o — text + optional vision (image as base64) */
-async function callOpenAI(messages) {
-  if (!OPENAI_KEY) {
-    // stub — remove once you add VITE_OPENAI_API_KEY to .env
-    await delay(400);
-    const last = messages[messages.length - 1];
-    const content = typeof last.content === "string" ? last.content : JSON.stringify(last.content);
-    if (/color|paint|texture|style|change|edit|darker|lighter|wood|fabric/i.test(content)) return "edit";
-    if (/convert|3d|model|ar|space/i.test(content)) return "convert";
-    return "convert";
-  }
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_KEY}`,
-    },
-    body: JSON.stringify({ model: "gpt-4o", max_tokens: 600, messages }),
-  });
-  if (!resp.ok) throw new Error(`OpenAI ${resp.status}`);
-  const data = await resp.json();
-  return data.choices[0].message.content.trim();
-}
-
-/**
- * Qwen VL image-edit.
- * Docs: https://help.aliyun.com/en/model-studio/qwen-vl
- * The edit endpoint expects a base64 image + a text instruction and returns
- * an edited base64 image.
- */
-async function callQwenEdit(imageB64, instruction) {
-  if (!QWEN_KEY) {
-    // stub — returns the original image unchanged so the flow still runs
-    await delay(1800);
-    return imageB64;
-  }
-  const resp = await fetch(
-    "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2image/image-synthesis",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${QWEN_KEY}`,
-        "X-DashScope-Async": "disable",
-      },
-      body: JSON.stringify({
-        model: "wanx-v1",            // Qwen image-edit model — swap if Alibaba updates it
-        input: {
-          prompt: instruction,
-          image_list: [`data:image/png;base64,${imageB64}`],
-        },
-        parameters: { n: 1, size: "1024*1024" },
-      }),
-    }
-  );
-  if (!resp.ok) throw new Error(`Qwen ${resp.status}`);
-  const data = await resp.json();
-  // Qwen returns an array of output images as URLs or base64
-  const resultUrl = data.output?.results?.[0]?.url;
-  if (!resultUrl) throw new Error("Qwen returned no image");
-  // fetch the result image and re-encode as base64
-  const imgResp = await fetch(resultUrl);
-  const blob = await imgResp.blob();
-  return blobToBase64(blob);
-}
-
-/**
- * Microsoft Trellis — image (base64) → .glb URL.
- * Trellis is async: POST to start, then poll until status = "succeeded".
- */
-async function callTrellis(imageB64) {
-  if (!TRELLIS_KEY) {
-    // stub — returns Google's sample model so the full flow is testable now
-    await delay(2400);
-    return "https://modelviewer.dev/shared-assets/models/Astronaut.glb";
-  }
-
-  // 1. Kick off the job
-  const startResp = await fetch(`${TRELLIS_URL}/generate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Ocp-Apim-Subscription-Key": TRELLIS_KEY,
-    },
-    body: JSON.stringify({ image_base64: imageB64, output_format: "glb" }),
-  });
-  if (!startResp.ok) throw new Error(`Trellis start ${startResp.status}`);
-  const { job_id } = await startResp.json();
-
-  // 2. Poll every 3 s, timeout after 3 min
-  const deadline = Date.now() + 3 * 60_000;
-  while (Date.now() < deadline) {
-    await delay(3000);
-    const pollResp = await fetch(`${TRELLIS_URL}/jobs/${job_id}`, {
-      headers: { "Ocp-Apim-Subscription-Key": TRELLIS_KEY },
-    });
-    const poll = await pollResp.json();
-    if (poll.status === "succeeded") return poll.result_url;   // .glb URL
-    if (poll.status === "failed") throw new Error("Trellis job failed");
-  }
-  throw new Error("Trellis timed out");
-}
+const hf = HF_TOKEN ? new InferenceClient(HF_TOKEN) : null;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-const delay = (ms) => new Promise(r => setTimeout(r, ms));
-
 function fileToBase64(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -153,96 +66,216 @@ function fileToBase64(file) {
   });
 }
 
-function blobToBase64(blob) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result.split(",")[1]);
-    r.onerror = rej;
-    r.readAsDataURL(blob);
-  });
-}
-
 function isIOS() {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
-// ─── LangGraph-style state machine ───────────────────────────────────────────
+// ─── Step 1: your LLM — routing + turning a color/instruction into a
+//     precise Qwen edit prompt ─────────────────────────────────────────────
+export async function callOpenAI(messages) {
+  if (!OPENAI_KEY) {
+    throw new Error("VITE_OPENAI_API_KEY is not set.");
+  }
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_KEY}` },
+    body: JSON.stringify({ model: "gpt-4o", max_tokens: 600, messages }),
+  });
+  if (!resp.ok) throw new Error(`OpenAI ${resp.status}`);
+  const data = await resp.json();
+  return data.choices[0].message.content.trim();
+}
+
+export async function routeIntent({ history, lastUserMsg, hasImage }) {
+  const systemPrompt = `You are a routing agent for a furniture AR app.
+Given the conversation, reply with EXACTLY one word:
+- "convert"  → user wants a 3D model from the current image without edits
+- "edit"     → user wants to change color, material, texture, or style first
+- "chat"     → general question, no image action needed`;
+  const raw = await callOpenAI([
+    { role: "system", content: systemPrompt },
+    ...history.slice(-6),
+    { role: "user", content: lastUserMsg || (hasImage ? "Convert this to a 3D model." : "") },
+  ]);
+  const clean = raw.toLowerCase().replace(/[^a-z]/g, "");
+  return { intent: clean === "edit" ? "edit" : clean === "chat" ? "chat" : "convert" };
+}
+
+/** Turns a hex color or free-text instruction into one precise edit sentence. */
+export async function buildEditPrompt({ productName, colorHex, instruction }) {
+  const task = instruction
+    ? instruction
+    : `Recolor the upholstery/finish to the hex color ${colorHex}, keeping the shape, proportions, materials texture, lighting and background completely unchanged.`;
+  if (!OPENAI_KEY) {
+    // Fallback so the chain still runs without an LLM key configured.
+    return `Photorealistic product photo of a ${productName || "piece of furniture"}. ${task} Do not alter the pose, camera angle, or background.`;
+  }
+  return callOpenAI([
+    {
+      role: "system",
+      content:
+        "You write short, precise image-editing instructions for an AI photo editor. " +
+        "Given a product name and a requested change, output ONE sentence describing " +
+        "exactly what to change and explicitly stating everything else (shape, materials, " +
+        "camera angle, lighting, background) must stay identical. Output only the sentence.",
+    },
+    { role: "user", content: `Product: ${productName || "furniture piece"}. Requested change: ${task}` },
+  ]);
+}
+
+// ─── Step 2: Qwen Image Edit (Hugging Face) ────────────────────────────────
+export async function editImageWithQwen({ imageUrl, imageBase64, prompt }) {
+  if (!hf) throw new Error("VITE_HF_API_TOKEN is not set.");
+
+  let inputBlob;
+  if (imageBase64) {
+    const bin = atob(imageBase64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    inputBlob = new Blob([bytes], { type: "image/png" });
+  } else if (imageUrl) {
+    const r = await fetch(imageUrl);
+    if (!r.ok) throw new Error(`Could not fetch source image (${r.status})`);
+    inputBlob = await r.blob();
+  } else {
+    throw new Error("editImageWithQwen needs imageUrl or imageBase64");
+  }
+
+  // Routed to whichever Inference Provider serves the model (fal /
+  // WaveSpeed, per the model card) — same token, no provider-specific code.
+  return hf.imageToImage({
+    model: QWEN_MODEL_ID,
+    inputs: inputBlob,
+    parameters: { prompt },
+  }); // → Blob
+}
+
+// ─── Step 3: Trellis.2 (image → .glb), via its Hugging Face Space ─────────
+// Confirmed against microsoft/TRELLIS.2's own "Use via API" (JS) docs.
+// This Space is session-based: start_session must be called first, then
+// image_to_3d runs the generation and stores the result server-side against
+// that session, then extract_glb exports it as an actual downloadable .glb.
+// All three calls MUST go through the same `client` instance so the Space
+// ties them to the same session_hash.
+export async function imageToGlb(imageBlob, onStatus = () => {}) {
+  if (!TRELLIS_SPACE) throw new Error("VITE_TRELLIS_HF_SPACE is not set.");
+
+  const client = await GradioClient.connect(TRELLIS_SPACE, { hf_token: HF_TOKEN || undefined });
+
+  onStatus("Starting Trellis session…");
+  await client.predict("/start_session", {});
+
+  onStatus("Generating the 3D asset (this can take a minute)…");
+  await client.predict("/image_to_3d", {
+    image: imageBlob,
+    seed: 0,
+    resolution: "1024",
+    ss_guidance_strength: 7.5,
+    ss_guidance_rescale: 0.7,
+    ss_sampling_steps: 12,
+    ss_rescale_t: 5,
+    shape_slat_guidance_strength: 7.5,
+    shape_slat_guidance_rescale: 0.5,
+    shape_slat_sampling_steps: 12,
+    shape_slat_rescale_t: 3,
+    tex_slat_guidance_strength: 1,
+    tex_slat_guidance_rescale: 0,
+    tex_slat_sampling_steps: 12,
+    tex_slat_rescale_t: 3,
+  });
+
+  onStatus("Exporting the GLB file…");
+  const result = await client.predict("/extract_glb", {
+    decimation_target: 300000,
+    texture_size: 2048,
+  });
+
+  // extract_glb returns [Model3d file, DownloadButton file] — try the
+  // download button entry first, fall back to the Model3d entry.
+  const [model3d, downloadBtn] = Array.isArray(result.data) ? result.data : [result.data];
+  const glbFile = downloadBtn || model3d;
+  let glbUrl = glbFile?.url || glbFile?.path;
+
+  if (glbUrl && !/^https?:\/\//i.test(glbUrl)) {
+    // Gradio sometimes hands back a server-local filesystem path instead
+    // of a full URL — resolve it against the Space's own origin so the
+    // browser can actually fetch it, instead of silently failing to load
+    // (which makes model-viewer just keep showing whatever was already
+    // rendered, looking exactly like nothing happened).
+    const root = client.config?.root || `https://${TRELLIS_SPACE.replace("/", "-")}.hf.space`;
+    glbUrl = `${root.replace(/\/$/, "")}/file=${glbUrl}`;
+  }
+
+  console.log("[Trellis] resolved .glb URL:", glbUrl, "| raw response:", glbFile);
+  if (!glbUrl) throw new Error("Trellis Space returned no .glb file");
+  return glbUrl;
+}
+
+/**
+ * Combined chain: color OR free-text instruction → prompt → Qwen → Trellis
+ * → glb URL. This is what both the chatbot and ProductPage.jsx's Generate
+ * button call — the one place this pipeline is implemented.
+ */
+export async function runRecolorChain({ productName, imageUrl, imageBase64, colorHex, instruction }, onStatus = () => {}) {
+  onStatus("Writing the edit instruction…");
+  const prompt = await buildEditPrompt({ productName, colorHex, instruction });
+
+  onStatus("Editing the photo with Qwen…");
+  const editedBlob = await editImageWithQwen({ imageUrl, imageBase64, prompt });
+
+  const modelUrl = await imageToGlb(editedBlob, onStatus);
+
+  return { modelUrl, prompt };
+}
+
+// ─── LangGraph-style state machine (chat flow only) ──────────────────────
 /**
  * Graph state shape:
  * {
- *   history:        [{role, content}],   // full OpenAI message history
- *   sourceImageB64: string|null,         // original uploaded image (base64)
- *   editedImageB64: string|null,         // after Qwen edit (base64)
- *   modelUrl:       string|null,         // current .glb URL
+ *   history:        [{role, content}],
+ *   sourceImageB64: string|null,
+ *   modelUrl:       string|null,
  *   lastUserMsg:    string,
  *   pendingFile:    File|null,
- *   intent:         string|null,
- *   statusMsg:      string,              // shown in chat as progress
+ *   statusMsg:      string,
  *   error:          string|null,
  * }
  */
 
 async function nodeRoute(state) {
-  const { lastUserMsg, sourceImageB64, history } = state;
-
-  // Build vision message if we have an image
-  const userContent = sourceImageB64
-    ? [
-        { type: "image_url", image_url: { url: `data:image/png;base64,${sourceImageB64}` } },
-        { type: "text", text: lastUserMsg || "Convert this to a 3D model." },
-      ]
-    : lastUserMsg;
-
-  const systemPrompt = `You are a routing agent for a furniture AR app.
-Given the conversation and (optionally) an image, reply with EXACTLY one word:
-- "convert"  → user wants to create a 3D model from the current image without edits
-- "edit"     → user wants to change color, material, texture, style, or any visual aspect of the image before converting
-- "chat"     → general question, no image action needed`;
-
-  const intent = await callOpenAI([
-    { role: "system", content: systemPrompt },
-    ...history.slice(-6),
-    { role: "user", content: userContent },
-  ]);
-
-  const clean = intent.toLowerCase().replace(/[^a-z]/g, "");
-  return {
-    intent: clean === "edit" ? "edit" : clean === "chat" ? "chat" : "convert",
-    next: clean === "edit" ? "edit" : clean === "chat" ? "chat" : "trellis",
-  };
+  const { intent } = await routeIntent({
+    history: state.history.slice(-6),
+    lastUserMsg: state.lastUserMsg,
+    hasImage: !!state.sourceImageB64,
+  });
+  return { intent, next: intent === "edit" ? "edit" : intent === "chat" ? "chat" : "convertAndEdit" };
 }
 
-async function nodeEdit(state, onStatus) {
-  const { sourceImageB64, lastUserMsg } = state;
+// "convert" and "edit" both end up in the same chain — the only difference
+// is whether the user typed an instruction to apply first.
+async function nodeConvertAndEdit(state, onStatus) {
+  const { sourceImageB64, lastUserMsg, intent } = state;
   if (!sourceImageB64) {
     return { error: "Please drop a furniture image first.", next: null };
   }
-  onStatus("✏️ Editing image with Qwen…");
-  const editedImageB64 = await callQwenEdit(sourceImageB64, lastUserMsg);
-  return { editedImageB64, next: "trellis" };
-}
-
-async function nodeTrellis(state, onStatus) {
-  const imageB64 = state.editedImageB64 || state.sourceImageB64;
-  if (!imageB64) {
-    return { error: "No image to convert. Please drop a photo first.", next: null };
-  }
-  onStatus("🔄 Converting to 3D with Trellis…");
-  const modelUrl = await callTrellis(imageB64);
-  return { modelUrl, editedImageB64: null, next: "done" };
+  const { modelUrl } = await runRecolorChain(
+    { imageBase64: sourceImageB64, instruction: intent === "edit" ? lastUserMsg : null },
+    onStatus
+  );
+  return { modelUrl, next: "done" };
 }
 
 async function nodeChat(state) {
-  const answer = await callOpenAI([
-    { role: "system", content: "You are a friendly furniture and interior design assistant for Atelier Oak, a luxury furniture brand. Be concise." },
+  const reply = await callOpenAI([
+    { role: "system", content: "You are a friendly furniture and interior design assistant for Assian Furniture. Be concise." },
     ...state.history.slice(-8),
     { role: "user", content: state.lastUserMsg },
   ]);
-  return { replyText: answer, next: null };
+  return { replyText: reply, next: null };
 }
 
-const NODES = { route: nodeRoute, edit: nodeEdit, trellis: nodeTrellis, chat: nodeChat };
+const NODES = { route: nodeRoute, edit: nodeConvertAndEdit, convertAndEdit: nodeConvertAndEdit, chat: nodeChat };
 
 async function runGraph(state, onStatus) {
   let s = { ...state, next: "route" };
@@ -332,7 +365,7 @@ function AROverlay({ onNewModel }) {
     try {
       const state = await runGraph(
         { history: msgs.map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text })),
-          sourceImageB64: imgB64, editedImageB64: null, modelUrl: null,
+          sourceImageB64: imgB64, modelUrl: null,
           lastUserMsg: text, pendingFile: null },
         setStatusMsg
       );
@@ -386,7 +419,7 @@ export default function ARChatbot() {
   const [modelUrl, setModelUrl] = useState(null);
   const [arActive, setArActive] = useState(false);
   const [graphState, setGraphState] = useState({
-    history: [], sourceImageB64: null, editedImageB64: null, modelUrl: null,
+    history: [], sourceImageB64: null, modelUrl: null,
   });
   const [dragOver, setDragOver] = useState(false);
 
